@@ -31,9 +31,8 @@ fn main() {
 
     let bucket = Bucket::new(&bucket_name, region, credentials).unwrap();
 
-    // `sync` feature of rust-s3 doesn't seem to work, using tokio async with `blocking` feature instead
     let ok = bucket
-        .put_object_with_content_type_blocking(
+        .put_object_with_content_type(
             format!("{}{}.png", date.format("%Y/%m/"), uuid),
             &buffer,
             "image/png",
