@@ -9,11 +9,5 @@ rust-s3 = { version = "0.28.0", default-features = false, features = [
     "sync-native-tls",
 ] }
 uuid = { version = "0.4", features = ["v4"] }
-clap = { version = "3.0.0-beta.5", default-features = false, features = [
-    "std",
-    "yaml",
-    "color",
-    "env",
-    "suggestions",
-] }
 chrono = "0.4"
+load-dotenv = "0.1.2"

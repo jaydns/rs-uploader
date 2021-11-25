@@ -1,8 +1,11 @@
-use chrono;
-use clap::{load_yaml, App};
-use s3::{bucket::Bucket, creds::Credentials, region::Region};
 use std::{io::stdin, io::Read, process::exit};
+
+use chrono;
+use load_dotenv::load_dotenv;
+use s3::{bucket::Bucket, creds::Credentials, region::Region};
 use uuid::Uuid;
+
+load_dotenv!();
 
 fn main() {
     // load image from stdin into `buffer`
@@ -12,19 +15,16 @@ fn main() {
     let uuid = Uuid::new_v4();
     let date = chrono::Local::now();
 
-    let yaml = load_yaml!("cli.yaml");
-    let matches = App::from(yaml).get_matches();
-
-    let bucket_name = matches.value_of("bucket").unwrap();
+    let bucket_name = env!("S3_BUCKET_NAME");
 
     let region = Region::Custom {
-        region: matches.value_of("region").unwrap().to_owned(),
-        endpoint: matches.value_of("endpoint").unwrap().to_owned(),
+        region: env!("S3_REGION").to_owned(),
+        endpoint: env!("S3_ENDPOINT").to_owned(),
     };
 
     let credentials = Credentials {
-        access_key: Some(matches.value_of("access-key").unwrap().to_owned()),
-        secret_key: Some(matches.value_of("secret-key").unwrap().to_owned()),
+        access_key: Some(env!("S3_ACCESS_KEY").to_owned()),
+        secret_key: Some(env!("S3_SECRET_KEY").to_owned()),
         security_token: None,
         session_token: None,
     };
@@ -46,7 +46,7 @@ fn main() {
 
     println!(
         "{{\"imageUrl\": \"{}{}{}.png\"}}",
-        matches.value_of("url").unwrap_or(""),
+        env!("S3_URL"),
         date.format("/%Y/%m/"),
         uuid
     )
