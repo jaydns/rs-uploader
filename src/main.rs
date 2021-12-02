@@ -49,5 +49,5 @@ fn main() {
         env!("S3_URL"),
         date.format("/%Y/%m/"),
         uuid
-    )
+    );
 }
