@@ -1,9 +1,8 @@
 use std::{io::stdin, io::Read, process::exit};
 
-use chrono;
 use load_dotenv::load_dotenv;
+use nanoid::nanoid;
 use s3::{bucket::Bucket, creds::Credentials, region::Region};
-use uuid::Uuid;
 
 load_dotenv!();
 
@@ -12,7 +11,7 @@ fn main() {
     let mut buffer = Vec::new();
     stdin().lock().read_to_end(&mut buffer).ok();
 
-    let uuid = Uuid::new_v4();
+    let nanoid = nanoid!();
     let date = chrono::Local::now();
 
     let bucket_name = env!("S3_BUCKET_NAME");
@@ -29,11 +28,11 @@ fn main() {
         session_token: None,
     };
 
-    let bucket = Bucket::new(&bucket_name, region, credentials).unwrap();
+    let bucket = Bucket::new(bucket_name, region, credentials).unwrap();
 
     let ok = bucket
         .put_object_with_content_type(
-            format!("{}{}.png", date.format("%Y/%m/"), uuid),
+            format!("{}{}.png", date.format("%Y/%m/"), nanoid),
             &buffer,
             "image/png",
         )
@@ -48,6 +47,6 @@ fn main() {
         "{{\"imageUrl\": \"{}{}{}.png\"}}",
         env!("S3_URL"),
         date.format("/%Y/%m/"),
-        uuid
+        nanoid
     );
 }

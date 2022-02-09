@@ -8,6 +8,6 @@ rust-s3 = { version = "0.28", default-features = false, features = [
     "sync",
     "sync-native-tls",
 ] }
-uuid = { version = "0.8", features = ["v4"] }
 chrono = "0.4"
 load-dotenv = "0.1"
+nanoid = "0.4.0"
