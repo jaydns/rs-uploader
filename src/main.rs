@@ -8,7 +8,13 @@ use nanoid::nanoid;
 use notify::{watcher, RecursiveMode, Watcher};
 use notify_rust::Notification;
 use s3::{bucket::Bucket, creds::Credentials, region::Region};
-use std::{fs::File, io::stdin, io::Read, sync::mpsc::channel, thread, time::Duration};
+use std::{
+    fs::{remove_file, File},
+    io::{stdin, Read},
+    sync::mpsc::channel,
+    thread,
+    time::Duration,
+};
 use tray_item::TrayItem;
 
 #[derive(Parser, Debug)]
@@ -16,6 +22,9 @@ use tray_item::TrayItem;
 struct Args {
     #[clap(short, long)]
     watch: Option<String>,
+
+    #[clap(short, long)]
+    delete_after_upload: bool,
 }
 
 load_dotenv!();
@@ -90,7 +99,7 @@ fn main() {
                     let mut buffer = Vec::new();
 
                     {
-                        let mut file = File::open(path).unwrap();
+                        let mut file = File::open(path.clone()).unwrap();
                         file.read_to_end(&mut buffer).unwrap();
                     }
 
@@ -103,6 +112,10 @@ fn main() {
                         .body(format!("Uploaded, copied to clipboard: {}", &url).as_str())
                         .show()
                         .unwrap();
+
+                    if args.delete_after_upload {
+                        remove_file(path.clone()).unwrap();
+                    }
                 }
             }
             Err(e) => println!("watch error: {:?}", e),
