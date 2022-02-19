@@ -29,7 +29,7 @@ struct Args {
 
 load_dotenv!();
 
-fn upload_image(buffer: &[u8]) -> Result<String, String> {
+fn upload_image(buffer: &[u8], file_ext: &str) -> Result<String, String> {
     let nanoid = nanoid!();
     let date = chrono::Local::now();
 
@@ -50,9 +50,9 @@ fn upload_image(buffer: &[u8]) -> Result<String, String> {
     let bucket = Bucket::new(bucket_name, region, credentials).unwrap();
 
     let res = bucket.put_object_with_content_type(
-        format!("{}{}.png", date.format("%Y/%m/"), nanoid),
+        format!("{}{}.{}", date.format("%Y/%m/"), nanoid, file_ext),
         buffer,
-        "image/png",
+        &mime_guess::from_ext(file_ext).first().unwrap().to_string(),
     );
 
     if res.is_err() {
@@ -62,10 +62,11 @@ fn upload_image(buffer: &[u8]) -> Result<String, String> {
     }
 
     return Ok(format!(
-        "{}{}{}.png",
+        "{}{}{}.{}",
         env!("S3_URL"),
         date.format("/%Y/%m/"),
-        nanoid
+        nanoid,
+        file_ext
     ));
 }
 
@@ -75,7 +76,7 @@ fn main() {
     if args.watch.is_none() {
         let mut buffer = Vec::new();
         stdin().read_to_end(&mut buffer).unwrap();
-        let url = upload_image(&buffer).unwrap();
+        let url = upload_image(&buffer, "png").unwrap();
         println!("{{\"imageUrl\": \"{}\"}}", url);
         return;
     }
@@ -103,7 +104,9 @@ fn main() {
                         file.read_to_end(&mut buffer).unwrap();
                     }
 
-                    let url = upload_image(&buffer).unwrap();
+                    let url =
+                        upload_image(&buffer, path.clone().extension().unwrap().to_str().unwrap())
+                            .unwrap();
 
                     clipboard_ctx.set_contents(url.to_string()).unwrap();
 
