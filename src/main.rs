@@ -1,8 +1,6 @@
 extern crate clipboard;
 extern crate notify;
 
-use std::{fs::File, io::stdin, io::Read, sync::mpsc::channel, time::Duration};
-
 use clap::Parser;
 use clipboard::{ClipboardContext, ClipboardProvider};
 use load_dotenv::load_dotenv;
@@ -10,6 +8,8 @@ use nanoid::nanoid;
 use notify::{watcher, RecursiveMode, Watcher};
 use notify_rust::Notification;
 use s3::{bucket::Bucket, creds::Credentials, region::Region};
+use std::{fs::File, io::stdin, io::Read, sync::mpsc::channel, thread, time::Duration};
+use tray_item::TrayItem;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -71,6 +71,8 @@ fn main() {
         return;
     }
 
+    let mut tray = TrayItem::new("rs-uploader", "").unwrap();
+
     let mut clipboard_ctx: ClipboardContext = ClipboardProvider::new().unwrap();
 
     let (tx, rx) = channel();
@@ -81,7 +83,7 @@ fn main() {
         .watch(args.watch.unwrap(), RecursiveMode::NonRecursive)
         .unwrap();
 
-    loop {
+    thread::spawn(move || loop {
         match rx.recv() {
             Ok(event) => {
                 if let notify::DebouncedEvent::Create(path) = event {
@@ -105,5 +107,10 @@ fn main() {
             }
             Err(e) => println!("watch error: {:?}", e),
         }
-    }
+    });
+
+    let inner = tray.inner_mut();
+
+    inner.add_quit_item("Quit");
+    inner.display();
 }
