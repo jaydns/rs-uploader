@@ -1,16 +1,26 @@
-use std::{io::stdin, io::Read, process::exit};
+extern crate clipboard;
+extern crate notify;
 
+use std::{fs::File, io::stdin, io::Read, sync::mpsc::channel, time::Duration};
+
+use clap::Parser;
+use clipboard::{ClipboardContext, ClipboardProvider};
 use load_dotenv::load_dotenv;
 use nanoid::nanoid;
+use notify::{watcher, RecursiveMode, Watcher};
+use notify_rust::Notification;
 use s3::{bucket::Bucket, creds::Credentials, region::Region};
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long)]
+    watch: Option<String>,
+}
 
 load_dotenv!();
 
-fn main() {
-    // load image from stdin into `buffer`
-    let mut buffer = Vec::new();
-    stdin().lock().read_to_end(&mut buffer).ok();
-
+fn upload_image(buffer: &[u8]) -> Result<String, String> {
     let nanoid = nanoid!();
     let date = chrono::Local::now();
 
@@ -30,23 +40,70 @@ fn main() {
 
     let bucket = Bucket::new(bucket_name, region, credentials).unwrap();
 
-    let ok = bucket
-        .put_object_with_content_type(
-            format!("{}{}.png", date.format("%Y/%m/"), nanoid),
-            &buffer,
-            "image/png",
-        )
-        .is_ok();
+    let res = bucket.put_object_with_content_type(
+        format!("{}{}.png", date.format("%Y/%m/"), nanoid),
+        buffer,
+        "image/png",
+    );
 
-    if !ok {
-        eprintln!("Error uploading image");
-        exit(1);
+    if res.is_err() {
+        let error = res.err().unwrap();
+        eprintln!("{:?}", error);
+        return Err(error.to_string());
     }
 
-    println!(
-        "{{\"imageUrl\": \"{}{}{}.png\"}}",
+    return Ok(format!(
+        "{}{}{}.png",
         env!("S3_URL"),
         date.format("/%Y/%m/"),
         nanoid
-    );
+    ));
+}
+
+fn main() {
+    let args = Args::parse();
+
+    if args.watch.is_none() {
+        let mut buffer = Vec::new();
+        stdin().read_to_end(&mut buffer).unwrap();
+        let url = upload_image(&buffer).unwrap();
+        println!("{{\"imageUrl\": \"{}\"}}", url);
+        return;
+    }
+
+    let mut clipboard_ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+
+    let (tx, rx) = channel();
+
+    let mut watcher = watcher(tx, Duration::from_millis(500)).unwrap();
+
+    watcher
+        .watch(args.watch.unwrap(), RecursiveMode::NonRecursive)
+        .unwrap();
+
+    loop {
+        match rx.recv() {
+            Ok(event) => {
+                if let notify::DebouncedEvent::Create(path) = event {
+                    let mut buffer = Vec::new();
+
+                    {
+                        let mut file = File::open(path).unwrap();
+                        file.read_to_end(&mut buffer).unwrap();
+                    }
+
+                    let url = upload_image(&buffer).unwrap();
+
+                    clipboard_ctx.set_contents(url.to_string()).unwrap();
+
+                    Notification::new()
+                        .summary("rs-uploader")
+                        .body(format!("Uploaded, copied to clipboard: {}", &url).as_str())
+                        .show()
+                        .unwrap();
+                }
+            }
+            Err(e) => println!("watch error: {:?}", e),
+        }
+    }
 }
