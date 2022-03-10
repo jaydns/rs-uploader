@@ -1,18 +1,14 @@
-extern crate clipboard;
-extern crate notify;
-
 use clap::Parser;
 use clipboard::{ClipboardContext, ClipboardProvider};
 use load_dotenv::load_dotenv;
 use nanoid::nanoid;
-use notify::{watcher, RecursiveMode, Watcher};
+use notify::{RecursiveMode, Watcher};
 use notify_rust::Notification;
 use s3::{bucket::Bucket, creds::Credentials, region::Region};
 use std::{
-    fs::{remove_file, File},
-    io::{stdin, Read},
-    sync::mpsc::channel,
-    thread,
+    fs::{self, File},
+    io::{self, Read},
+    sync, thread,
     time::Duration,
 };
 use tray_item::TrayItem;
@@ -75,7 +71,7 @@ fn main() {
 
     if args.watch.is_none() {
         let mut buffer = Vec::new();
-        stdin().read_to_end(&mut buffer).unwrap();
+        io::stdin().read_to_end(&mut buffer).unwrap();
         let url = upload_image(&buffer, "png").unwrap();
         println!("{{\"imageUrl\": \"{}\"}}", url);
         return;
@@ -85,9 +81,9 @@ fn main() {
 
     let mut clipboard_ctx: ClipboardContext = ClipboardProvider::new().unwrap();
 
-    let (tx, rx) = channel();
+    let (tx, rx) = sync::mpsc::channel();
 
-    let mut watcher = watcher(tx, Duration::from_millis(500)).unwrap();
+    let mut watcher = notify::watcher(tx, Duration::from_millis(500)).unwrap();
 
     watcher
         .watch(args.watch.unwrap(), RecursiveMode::NonRecursive)
@@ -96,7 +92,7 @@ fn main() {
     thread::spawn(move || loop {
         match rx.recv() {
             Ok(event) => {
-                if let notify::DebouncedEvent::Create(path) = event {
+                if let notify::DebouncedEvent::Write(path) = event {
                     let mut buffer = Vec::new();
 
                     {
@@ -117,7 +113,7 @@ fn main() {
                         .unwrap();
 
                     if args.delete_after_upload {
-                        remove_file(path.clone()).unwrap();
+                        fs::remove_file(path.clone()).unwrap();
                     }
                 }
             }
